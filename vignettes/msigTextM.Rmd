@@ -1,0 +1,161 @@
+---
+title: "Text-mining utilities for molecular signature catalogues with Bioconductor"
+author: "Vincent J. Carey, stvjc at channing.harvard.edu"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+vignette: >
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteIndexEntry{MSigDb text mining -- elementary concerns}
+  %\VignetteEncoding{UTF-8}
+output:
+  BiocStyle::html_document:
+    highlight: pygments
+    number_sections: yes
+    theme: united
+    toc: yes
+abstract: >
+  The purpose of this package is to mobilize text mining technologies
+  to help users interrogate gene set information
+  in signature catalogues (such as MSigDb) through verbalization of relevant scientific concepts.
+---
+
+```{r setup,echo=FALSE,results="hide"}
+library(ssrch)
+library(msigTextM)
+library(DT)
+```
+
+# Introduction
+
+[MSigDb](http://software.broadinstitute.org/gsea/msigdb/index.jsp)
+is a curated collection of gene sets, with
+enumerations of gene symbols or ENTREZ identifiers
+in sets that occupy higher level categories.
+
+The main categories (and subcategories, indented) are
+
+- H: hallmark
+- C1: positional
+- C2: curated 
+    - CGP: chemical and genetic perturbations
+    - CP: canonical pathways (also subclassed by source)
+- C3: motif
+    - MIR: microRNA target sets
+    - TFT: transcription factor target sets
+- C4: computational
+    - CGN: cancer gene neighborhoods
+    - CM: cancer modules
+- C5: Gene Ontology
+    - BP: (biological process) 
+    - MF: (molecular function)
+    - CC: (cellular component)
+- C6: oncogenic
+- C7: immunologic
+
+Here we tabulate the counts of gene sets by category
+and sub-category.  
+```
+             main category
+subcategory   ARCHIVED   C1   C2   C3   C4   C5   C6   C7    H
+                     0  326    0    0    0    0  189 4872   50
+  BP                 0    0    0    0    0 4436    0    0    0
+  C5_BP            527    0    0    0    0    0    0    0    0
+  C5_CC            159    0    0    0    0    0    0    0    0
+  C5_MF            178    0    0    0    0    0    0    0    0
+  CC                 0    0    0    0    0  580    0    0    0
+  CGN                0    0    0    0  427    0    0    0    0
+  CGP                0    0 3433    0    0    0    0    0    0
+  CM                 0    0    0    0  431    0    0    0    0
+  CP                 0    0  252    0    0    0    0    0    0
+  CP:BIOCARTA        0    0  217    0    0    0    0    0    0
+  CP:KEGG            0    0  186    0    0    0    0    0    0
+  CP:REACTOME        0    0  674    0    0    0    0    0    0
+  MF                 0    0    0    0    0  901    0    0    0
+  MIR                0    0    0  221    0    0    0    0    0
+  TFT                0    0    0  615    0    0    0    0    0
+```
+
+The _vocabularies_ of the gene set collections are important for
+many aspects of utilization.  
+`STANDARD_NAME` attributes for
+C7 gene sets look like
+
+```
+ [1] "KAECH_NAIVE_VS_DAY8_EFF_CD8_TCELL_UP"          
+ [2] "KAECH_NAIVE_VS_DAY8_EFF_CD8_TCELL_DN"          
+ [3] "KAECH_NAIVE_VS_DAY15_EFF_CD8_TCELL_UP"         
+ [4] "KAECH_NAIVE_VS_DAY15_EFF_CD8_TCELL_DN"         
+ [5] "KAECH_NAIVE_VS_MEMORY_CD8_TCELL_UP"            
+ [6] "KAECH_NAIVE_VS_MEMORY_CD8_TCELL_DN"            
+ [7] "KAECH_DAY8_EFF_VS_DAY15_EFF_CD8_TCELL_UP"      
+ [8] "KAECH_DAY8_EFF_VS_DAY15_EFF_CD8_TCELL_DN"      
+```
+
+This indicates that authorship, time
+(or other experimental design factors), cell type, and
+regulatory association may be encoded in standard gene
+set names.  The authorship information can be retrieved
+systematically from the `PMID` attribute, and its
+role in the set name can probably
+be ignored.
+
+Can we parse the set names, using the fact that
+underscore separates the key descriptive tokens?
+Perhaps, but examples like
+`GSE19888_ADENOSINE_A3R_INH_PRETREAT_AND_ACT_
+  BY_A3R_VS_A3R_INH_AND_TCELL_
+  MEMBRANES_ACT_MAST_CELL_UP`
+are not encouraging.
+
+The `DESCRIPTION_BRIEF` field is more human-readable.  Here
+are examples associated with the first four standard
+names listed above.
+```
+[1] "Genes up-regulated in naïve CD8 T cells compared to effector CD8 T cells at the peak expansion phase (day 8 after LCMV-Armstrong infection)."  
+[2] "Genes down-regulated in naïve CD8 T cells compared to effector CD8 T cells at the peak expansion phase (day 8 after LCMV-Armstrong infection)."
+[3] "Genes up-regulated in naïve CD8 T cells compared to effector CD8 T cells at contraction phase (day 15 after LCMV-Armstrong infection)."        
+[4] "Genes down-regulated in naïve CD8 T cells compared to effector CD8 T cells at contraction phase (day 15 after LCMV-Armstrong infection)."   
+```
+
+Some readers may find it a little challenging to extract the
+key distinctions among these sets -- up and down regulation
+are distinguished, but so are phases (peak expansion vs contraction),
+cell types, and times after LCMV-Armstrong infection.
+
+The purpose of this package is to mobilize text mining technologies
+to help users interrogate gene set information
+in MSigDb through verbalization of relevant scientific concepts.
+
+# Illustration with the C7 (immunologic) gene set collection
+
+We have created a `DocSet` instance for 300 gene sets from
+the immunologic set collection.
+
+```{r lkc7}
+immu300
+```
+
+This is essentially a collection of environments mapping from gene set
+names and descriptions to genes and back.  We have a `searchDocs` method
+to query the DocSet.
+
+```{r lkc7b}
+dsl = searchDocs("down.*systemic lupus", immu300)
+datatable(dsl)
+```
+
+It is possible to search for occurrence of a gene in the
+gene sets catalogued in the DocSet instance.
+
+```{r lkc7c}
+brocc = searchDocs("BRCA2", immu300)
+brocc
+```
+
+# TO DO
+
+The abstracts (DESCRIPTION_FULL fields) of the sets need to be introduced.
+This would entail enhancement to the ssrch package.
+
+Need to do the full c7 and see how large the resulting DocSet is.
+
+Do other classes.
